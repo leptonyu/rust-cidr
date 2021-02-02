@@ -1,0 +1,14 @@
+[package]
+name = "cidr"
+version = "0.1.0"
+authors = ["Daniel YU <i@icymint.me>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+regex = "1.4.3"
+lazy_static = "1.4.0"
+
+[dev-dependencies]
+quickcheck = "1.0.3"
