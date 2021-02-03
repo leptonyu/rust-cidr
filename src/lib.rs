@@ -1,11 +1,12 @@
 use lazy_static::lazy_static;
 use regex::Regex;
+use std::net::Ipv4Addr;
 use std::str::FromStr;
 
-#[derive(Eq, PartialEq, PartialOrd)]
+#[derive(Eq, PartialEq)]
 pub struct Ipv4Cidr {
     net: u32,
-    mask: u8,
+    size: u8,
 }
 
 impl Ipv4Cidr {
@@ -18,7 +19,25 @@ impl Ipv4Cidr {
         } else if mask < 32 {
             net = (net >> (32 - mask)) << (32 - mask)
         }
-        Ok(Ipv4Cidr { net, mask })
+        let size = 32 - mask;
+        Ok(Ipv4Cidr { net, size })
+    }
+
+    pub fn contains_ip(&self, ip: &Ipv4Addr) -> bool {
+        if self.size == 32 {
+            return true;
+        }
+        self.net >> self.size == u32::from(ip.clone()) >> self.size
+    }
+
+    pub fn contains_cidr(&self, cidr: &Ipv4Cidr) -> bool {
+        if self.size == 32 {
+            return true;
+        }
+        if self.size < cidr.size {
+            return false;
+        }
+        self.net >> self.size == cidr.net >> self.size
     }
 }
 
@@ -50,11 +69,7 @@ impl FromStr for Ipv4Cidr {
 
 impl ToString for Ipv4Cidr {
     fn to_string(&self) -> String {
-        let a1 = self.net & 0xFF;
-        let a2 = (self.net >> 8) & 0xFF;
-        let a3 = (self.net >> 16) & 0xFF;
-        let a4 = (self.net >> 24) & 0xFF;
-        format!("{}.{}.{}.{}/{}", a4, a3, a2, a1, self.mask)
+        format!("{}/{}", Ipv4Addr::from(self.net), 32 - self.size)
     }
 }
 
@@ -81,6 +96,15 @@ mod tests {
                 Ok(ip) => ip == Ipv4Cidr::from_str(&ip.to_string()).unwrap(),
                 _ => false,
             }
+        }
+        fn check_contains_ip(ip: u32, i: u8) -> bool {
+            Ipv4Cidr::new(ip, i % 33).unwrap().contains_ip(&Ipv4Addr::from(ip))
+        }
+        fn check_contains_cidr(ip: u32, i: u8) -> bool {
+            let i = i % 32;
+            let a0 = Ipv4Cidr::new(ip, i).unwrap();
+            let a1 = Ipv4Cidr::new(ip, i+1).unwrap();
+            a0.contains_cidr(&a1) && !a1.contains_cidr(&a0)
         }
     }
 }
