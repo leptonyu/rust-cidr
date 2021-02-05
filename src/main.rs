@@ -1,4 +1,4 @@
-use cidr_cli::ipv4::{Ipv4Cidr, Ipv4CidrList};
+use cidr::ipv4::{Ipv4Cidr, Ipv4CidrList};
 use std::io::{self, BufRead};
 use std::str::FromStr;
 
