@@ -188,24 +188,29 @@ mod tests {
         // println!("{}", &list);
     }
 
-    quickcheck! {
+    #[quickcheck]
     fn convert_tests(xs: u32, ys: u8) -> bool {
         match Ipv4Cidr::new(xs, ys % 33) {
             Ok(ip) => ip == Ipv4Cidr::from_str(&ip.to_string()).unwrap(),
             _ => false,
         }
     }
+    #[quickcheck]
     fn check_contains_ip(ip: u32, i: u8) -> bool {
         Ipv4Cidr::new(ip, i % 33)
             .unwrap()
             .contains_ip(&Ipv4Addr::from(ip))
     }
+
+    #[quickcheck]
     fn check_contains_cidr(ip: u32, i: u8) -> bool {
         let i = i % 32;
         let a0 = Ipv4Cidr::new(ip, i).unwrap();
         let a1 = Ipv4Cidr::new(ip, i + 1).unwrap();
         a0.contains_cidr(&a1) && !a1.contains_cidr(&a0)
     }
+
+    #[quickcheck]
     fn check_to_range(ip: u32, i: u8) -> bool {
         let cidr = Ipv4Cidr::new(ip, i % 32).unwrap();
         let (from, to) = cidr.to_range();
@@ -215,14 +220,16 @@ mod tests {
         if cidr.size == 32 {
             return from == 0 && to == u32::MAX;
         }
-        to - from + 1 >> cidr.size == 1
+        let count = to - from + 1;
+        count >> cidr.size == 1 && count.count_ones() == 1
     }
-    fn check_cidr_list(ip: u32 )-> bool {
+
+    #[quickcheck]
+    fn check_cidr_list(ip: u32) -> bool {
         let mut list = Ipv4CidrList::new();
         for j in 1..=32 {
             list.push(Ipv4Cidr::new(ip, j).unwrap());
         }
         list.inner.len() == 1
-    }
     }
 }
