@@ -8,7 +8,7 @@ fn main() {
     for line in stdin.lock().lines() {
         if let Ok(l) = line {
             if let Ok(ip) = Ipv4Cidr::from_str(&l) {
-                list.push(ip);
+                list.insert(ip);
             }
         }
     }

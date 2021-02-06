@@ -114,7 +114,7 @@ impl Ipv4CidrList {
         }
     }
 
-    pub fn push(&mut self, mut cidr: Ipv4Cidr) {
+    pub fn insert(&mut self, mut cidr: Ipv4Cidr) {
         loop {
             let mut rem = HashSet::new();
             //Search
@@ -169,21 +169,21 @@ mod tests {
         );
 
         let mut list = Ipv4CidrList::new();
-        list.push(Ipv4Cidr::from_str("0.0.0.0/1").unwrap());
-        list.push(Ipv4Cidr::from_str("128.0.0.0/1").unwrap());
+        list.insert(Ipv4Cidr::from_str("0.0.0.0/1").unwrap());
+        list.insert(Ipv4Cidr::from_str("128.0.0.0/1").unwrap());
         assert_eq!(1, list.inner.len());
 
         let mut list = Ipv4CidrList::new();
-        list.push(Ipv4Cidr::from_str("0.0.0.0/1").unwrap());
-        list.push(Ipv4Cidr::from_str("128.0.0.0/2").unwrap());
-        list.push(Ipv4Cidr::from_str("192.0.0.0/2").unwrap());
+        list.insert(Ipv4Cidr::from_str("0.0.0.0/1").unwrap());
+        list.insert(Ipv4Cidr::from_str("128.0.0.0/2").unwrap());
+        list.insert(Ipv4Cidr::from_str("192.0.0.0/2").unwrap());
         assert_eq!(1, list.inner.len());
         // println!("{}", &list);
 
         let mut list = Ipv4CidrList::new();
-        list.push(Ipv4Cidr::from_str("4.0.0.0/8").unwrap());
-        list.push(Ipv4Cidr::from_str("5.61.0.0/16").unwrap());
-        list.push(Ipv4Cidr::from_str("6.0.0.0/7").unwrap());
+        list.insert(Ipv4Cidr::from_str("4.0.0.0/8").unwrap());
+        list.insert(Ipv4Cidr::from_str("5.61.0.0/16").unwrap());
+        list.insert(Ipv4Cidr::from_str("6.0.0.0/7").unwrap());
         assert_eq!(3, list.inner.len());
         // println!("{}", &list);
     }
@@ -228,7 +228,7 @@ mod tests {
     fn check_cidr_list(ip: u32) -> bool {
         let mut list = Ipv4CidrList::new();
         for j in 1..=32 {
-            list.push(Ipv4Cidr::new(ip, j).unwrap());
+            list.insert(Ipv4Cidr::new(ip, j).unwrap());
         }
         list.inner.len() == 1
     }
