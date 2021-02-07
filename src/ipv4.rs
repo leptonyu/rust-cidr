@@ -1,6 +1,8 @@
 use lazy_static::lazy_static;
 use regex::Captures;
 use regex::Regex;
+use std::collections::btree_map::Iter;
+use std::collections::btree_map::IterMut;
 use std::fmt::Display;
 use std::fmt::Error;
 use std::fmt::Formatter;
@@ -101,6 +103,18 @@ impl FromStr for Ipv4Cidr {
     }
 }
 
+impl From<Ipv4Addr> for Ipv4Cidr {
+    fn from(addr: Ipv4Addr) -> Self {
+        Ipv4Cidr::from(u32::from(addr))
+    }
+}
+
+impl From<u32> for Ipv4Cidr {
+    fn from(addr: u32) -> Self {
+        Ipv4Cidr::new(addr, 32).expect("Not possible")
+    }
+}
+
 impl Display for Ipv4Cidr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(f, "{}/{}", self.first_ip(), self.mask())
@@ -120,11 +134,76 @@ impl Display for Ipv4CidrList {
     }
 }
 
+impl IntoIterator for Ipv4CidrList {
+    type Item = (u32, Ipv4Cidr);
+    type IntoIter = std::collections::btree_map::IntoIter<u32, Ipv4Cidr>;
+    fn into_iter(self) -> <Self as IntoIterator>::IntoIter {
+        self.inner.into_iter()
+    }
+}
+
 impl Ipv4CidrList {
     pub fn new() -> Self {
         Ipv4CidrList {
             inner: BTreeMap::new(),
         }
+    }
+
+    pub fn from_range(from: u32, to: u32) -> Self {
+        let mut list = Ipv4CidrList::new();
+        if from > to {
+            return list;
+        }
+        fn build(from: u32, to: u32, list: &mut Ipv4CidrList) {
+            let mut f = from;
+            let mut t = to;
+            let mut m = 0;
+            while f != t {
+                f >>= 1;
+                t >>= 1;
+                m += 1;
+            }
+            let block =
+                Ipv4Cidr::new(if m == 32 { 0 } else { f << m }, 32 - m).expect("Not possible");
+            if block.to_range() == (from, to) {
+                list.insert(block);
+                return;
+            }
+            let mid = (f << 1) + 1 << m - 1;
+            build(from, mid - 1, list);
+            build(mid, to, list);
+        }
+        build(from, to, &mut list);
+        list
+    }
+
+    pub fn iter(&self) -> Iter<'_, u32, Ipv4Cidr> {
+        self.inner.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> IterMut<'_, u32, Ipv4Cidr> {
+        self.inner.iter_mut()
+    }
+
+    pub fn to_range(&self) -> Vec<(Ipv4Addr, Ipv4Addr)> {
+        let mut v = vec![];
+        let mut iter = self.iter();
+        let mut f;
+        if let Some((_, cidr)) = iter.next() {
+            f = cidr.to_range();
+        } else {
+            return v;
+        }
+        while let Some((_, cidr)) = iter.next() {
+            let t = cidr.to_range();
+            if t.0 == f.1 + 1 {
+                f.1 = t.1;
+            } else {
+                v.push((Ipv4Addr::from(f.0), Ipv4Addr::from(f.1)));
+            }
+        }
+        v.push((Ipv4Addr::from(f.0), Ipv4Addr::from(f.1)));
+        v
     }
 
     pub fn insert(&mut self, mut cidr: Ipv4Cidr) {
@@ -170,7 +249,7 @@ mod tests {
     use super::*;
     use quickcheck::quickcheck;
     #[test]
-    fn some_tests() {
+    fn block_parse_tests() {
         assert_eq!("0.0.0.0/0", Ipv4Cidr::new(0, 0).unwrap().to_string());
         assert_eq!(
             "255.255.255.255/32",
@@ -180,7 +259,9 @@ mod tests {
             "127.0.0.0/8",
             Ipv4Cidr::new(127 << 24, 8).unwrap().to_string()
         );
-
+    }
+    #[test]
+    fn block_list_tests() {
         let mut list = Ipv4CidrList::new();
         list.insert(Ipv4Cidr::from_str("0.0.0.0/1").unwrap());
         list.insert(Ipv4Cidr::from_str("128.0.0.0/1").unwrap());
@@ -199,6 +280,22 @@ mod tests {
         list.insert(Ipv4Cidr::from_str("6.0.0.0/7").unwrap());
         assert_eq!(3, list.inner.len());
         // println!("{}", &list);
+    }
+    #[test]
+    fn range_parse_tests() {
+        let from = Ipv4Addr::from_str("1.0.0.0").unwrap();
+        let to = Ipv4Addr::from_str("1.0.0.255").unwrap();
+        let list = Ipv4CidrList::from_range(u32::from(from), u32::from(to));
+        assert_eq!("1.0.0.0/24", list.to_string().trim());
+        // println!("{}", list.to_string());
+
+        let from = Ipv4Addr::from_str("0.0.0.0").unwrap();
+        let to = Ipv4Addr::from_str("255.255.255.255").unwrap();
+        let list = Ipv4CidrList::from_range(u32::from(from), u32::from(to));
+        assert_eq!("0.0.0.0/0", list.to_string().trim());
+
+        // let list = Ipv4CidrList::from_range(0, u32::MAX - 1);
+        // println!("{}", &list)
     }
 
     #[quickcheck]
@@ -244,5 +341,12 @@ mod tests {
             list.insert(Ipv4Cidr::new(ip, j).unwrap());
         }
         list.inner.len() == 1
+    }
+
+    #[quickcheck]
+    fn check_cidr_list_change(from: u32, to: u32) -> bool {
+        from > to
+            || Ipv4CidrList::from_range(from, to).to_range()
+                == vec![(Ipv4Addr::from(from), Ipv4Addr::from(to))]
     }
 }
