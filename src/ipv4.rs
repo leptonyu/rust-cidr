@@ -1,4 +1,5 @@
 use lazy_static::lazy_static;
+use regex::Captures;
 use regex::Regex;
 use std::fmt::Display;
 use std::fmt::Error;
@@ -29,6 +30,17 @@ impl Ipv4Cidr {
         Ok(Ipv4Cidr { net, size })
     }
 
+    pub fn first_ip(&self) -> Ipv4Addr {
+        Ipv4Addr::from(self.net)
+    }
+    pub fn last_ip(&self) -> Ipv4Addr {
+        Ipv4Addr::from(self.to_range().1)
+    }
+
+    pub fn mask(&self) -> u8 {
+        32 - self.size
+    }
+
     pub fn contains_ip(&self, ip: &Ipv4Addr) -> bool {
         if self.size == 32 {
             return true;
@@ -47,14 +59,10 @@ impl Ipv4Cidr {
     }
 
     pub fn to_range(&self) -> (u32, u32) {
-        match self.size {
-            0 => (self.net, self.net),
-            32 => (0, u32::MAX),
-            _ => {
-                let base = (self.net >> self.size) << self.size;
-                (base, base + (2u32.pow(self.size as u32) - 1))
-            }
+        if self.size == 32 {
+            return (0, u32::MAX);
         }
+        (self.net, self.net + (2u32.pow(self.size as u32) - 1))
     }
 }
 
@@ -65,19 +73,28 @@ impl FromStr for Ipv4Cidr {
             static ref RE: Regex = Regex::new(
                 r"^(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])\.(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])\.(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])\.(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])(/([0-9]|[12][0-9]|3[012]))?$"
             )
-            .unwrap();
+            .expect("Not possible");
         }
+        fn parse_u32<'t>(ind: usize, v: &Captures<'t>) -> Result<u32, String> {
+            v.get(ind)
+                .map(|r| r.as_str().parse::<u32>())
+                .ok_or("Not possible")?
+                .map_err(|e| e.to_string())
+        }
+
         match RE.captures(s) {
-            Some(v) => {
-                let a1 = v.get(1).unwrap().as_str().parse::<u32>().unwrap();
-                let a2 = v.get(2).unwrap().as_str().parse::<u32>().unwrap();
-                let a3 = v.get(3).unwrap().as_str().parse::<u32>().unwrap();
-                let a4 = v.get(4).unwrap().as_str().parse::<u32>().unwrap();
+            Some(ref v) => {
                 let ms = match v.get(6) {
-                    Some(v) => v.as_str().parse::<u8>().unwrap(),
+                    Some(v) => v.as_str().parse::<u8>().expect("Not possible"),
                     _ => 32,
                 };
-                Ipv4Cidr::new((a1 << 24) + (a2 << 16) + (a3 << 8) + a4, ms)
+                Ipv4Cidr::new(
+                    (parse_u32(1, v)? << 24)
+                        + (parse_u32(2, v)? << 16)
+                        + (parse_u32(3, v)? << 8)
+                        + parse_u32(4, v)?,
+                    ms,
+                )
             }
             _ => Err("Invalid CIDR format.".to_owned()),
         }
@@ -86,7 +103,7 @@ impl FromStr for Ipv4Cidr {
 
 impl Display for Ipv4Cidr {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        write!(f, "{}/{}", Ipv4Addr::from(self.net), 32 - self.size)
+        write!(f, "{}/{}", self.first_ip(), self.mask())
     }
 }
 
@@ -96,12 +113,8 @@ pub struct Ipv4CidrList {
 
 impl Display for Ipv4CidrList {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        for (&k, v) in self.inner.iter() {
-            write!(
-                f,
-                "{}\n",
-                Ipv4Cidr::new(k, 32 - v.size).unwrap().to_string()
-            )?;
+        for (&_, v) in self.inner.iter() {
+            write!(f, "{}\n", v.to_string())?;
         }
         Ok(())
     }
@@ -141,7 +154,7 @@ impl Ipv4CidrList {
                 if let Some(v) = self.inner.get(&pair) {
                     if v.size == cidr.size {
                         self.inner.remove(&pair);
-                        cidr = Ipv4Cidr::new(pair, 31 - cidr.size).unwrap();
+                        cidr = Ipv4Cidr::new(pair, 31 - cidr.size).expect("Not possible");
                         continue;
                     }
                 }
