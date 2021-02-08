@@ -19,7 +19,6 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 
 use std::collections::BTreeMap;
-use std::collections::HashSet;
 
 /// Ipv4 CIDR structure
 #[derive(Eq, PartialEq, Debug, Clone)]
@@ -324,7 +323,7 @@ impl Ipv4CidrList {
         if self.delete_in_range(cidr) {
             return true;
         }
-        let mut add = HashSet::new();
+        let mut add = LinkedList::new();
         if let Some(v) = self.search_parent(cidr) {
             if v == cidr {
                 return false;
@@ -334,10 +333,10 @@ impl Ipv4CidrList {
             let (a2, a3) = cidr.to_range();
             let (a1, a4) = v.to_range();
             if a1 < a2 {
-                add.insert((a1, a2 - 1));
+                add.push_back((a1, a2 - 1));
             }
             if a3 < a4 {
-                add.insert((a3 + 1, a4));
+                add.push_back((a3 + 1, a4));
             }
         }
         for (a, b) in add {
@@ -478,5 +477,35 @@ mod tests {
             list.insert(d);
         }
         list == modl
+    }
+
+    #[quickcheck]
+    fn check_search_parent_empty(ip: u32, m: u8) -> bool {
+        let list = Ipv4CidrList::new();
+        list.search_parent(&Ipv4Cidr::new(ip, m % 33).unwrap()) == None
+    }
+
+    #[quickcheck]
+    fn check_search_parent_some(ip: u32, m: u8) -> bool {
+        let list = Ipv4CidrList::from_range(0, u32::MAX);
+        list.search_parent(&Ipv4Cidr::new(ip, m % 33).unwrap())
+            .is_some()
+    }
+
+    #[quickcheck]
+    fn check_search_parent_random(from: u32, to: u32, ip: u32, m: u8) -> bool {
+        let mut list = Ipv4CidrList::from_range(from, to);
+        let cidr = Ipv4Cidr::new(ip, m % 33).unwrap();
+
+        if let Some(v) = list.search_parent(&cidr) {
+            let v = v.clone();
+            list.insert(cidr.clone());
+            return list.contains_cidr(&cidr) && list.search_parent(&cidr) == Some(&v);
+        };
+        list.insert(cidr.clone());
+        if let Some(v) = list.search_parent(&cidr) {
+            return v.contains_cidr(&cidr);
+        }
+        false
     }
 }
