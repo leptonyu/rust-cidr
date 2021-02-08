@@ -5,15 +5,19 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 
 #[derive(Clap)]
-#[clap(author = "Daniel Yu")]
+#[clap(version = "0.1.0", author = "Daniel Yu<leptonyu@gmail.com>")]
 struct Opts {
-    #[clap(short)]
-    range: bool,
+    #[clap(short, about("Parse ip ranges instead of cidr blocks."))]
+    range_parse: bool,
 
-    #[clap(short, long, default_value = "\t")]
+    #[clap(
+        short,
+        default_value = "\t",
+        about("Only work when -r option is setted.")
+    )]
     sep: String,
 
-    #[clap(short)]
+    #[clap(short, long, about("Count all ip blocks size."))]
     count: bool,
 }
 
@@ -24,7 +28,7 @@ fn main() {
     let mut rem = Ipv4CidrList::new();
     for line in stdin.lock().lines() {
         if let Ok(l) = line {
-            if option.range {
+            if option.range_parse {
                 let v: Vec<&str> = l.split(&option.sep).collect();
                 if v.len() >= 2 {
                     fn parse_block(f: &str, t: &str) -> Ipv4CidrList {

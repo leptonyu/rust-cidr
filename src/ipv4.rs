@@ -37,12 +37,12 @@ impl Ipv4Cidr {
         if mask > 32 {
             return Err("Mask should equal or less then 32.".to_string());
         }
+        let size = 32 - mask;
         if mask == 0 {
             net = 0
         } else if mask < 32 {
-            net = (net >> (32 - mask)) << (32 - mask)
+            net = (net >> size) << size
         }
-        let size = 32 - mask;
         Ok(Ipv4Cidr { net, size })
     }
 
@@ -121,7 +121,7 @@ impl FromStr for Ipv4Cidr {
                 };
                 let ip =
                     Ipv4Addr::from_str(v.get(1).expect(NOT_POSSIBLE).as_str()).expect(NOT_POSSIBLE);
-                Ipv4Cidr::new(u32::from(ip), ms)
+                Ipv4Cidr::from_ip(ip, ms)
             }
             _ => Err("Invalid CIDR format.".to_owned()),
         }
@@ -267,9 +267,7 @@ impl Ipv4CidrList {
         let mut size = cidr.size;
         loop {
             if let Some(v) = self.inner.get(&net) {
-                if v.size >= size {
-                    return Some(v);
-                }
+                return if v.size >= size { Some(v) } else { None };
             }
             if size == 32 {
                 return None;
@@ -287,7 +285,7 @@ impl Ipv4CidrList {
         }
     }
 
-    fn delete_in_range(&mut self, cidr: &Ipv4Cidr) -> bool {
+    pub fn remove_cidr(&mut self, cidr: &Ipv4Cidr) -> bool {
         let (f, t) = cidr.to_range();
         let mut rem = LinkedList::new();
         for (&k, v) in self.inner.range(f..=t) {
@@ -304,8 +302,7 @@ impl Ipv4CidrList {
 
     /// Insert a CIDR block into the collection. Return `true` means collection is modified.
     pub fn insert(&mut self, mut cidr: Ipv4Cidr) -> bool {
-        self.delete_in_range(&cidr);
-        if self.contains_cidr(&cidr) {
+        if !self.remove_cidr(&cidr) && self.contains_cidr(&cidr) {
             return false;
         }
         loop {
@@ -332,28 +329,27 @@ impl Ipv4CidrList {
 
     /// Remove CIDR blocks.
     pub fn remove(&mut self, cidr: &Ipv4Cidr) -> bool {
-        if self.delete_in_range(cidr) {
+        if self.remove_cidr(cidr) {
             return true;
         }
-        let mut add = LinkedList::new();
         if let Some(v) = self.search_parent(cidr) {
             if v == cidr {
                 return false;
+            }
+            fn add(list: &mut Ipv4CidrList, (a, b): (u32, u32)) {
+                for (_, v) in Ipv4CidrList::from_range(a, b) {
+                    list.insert(v);
+                }
             }
             let v = v.clone();
             self.inner.remove(&v.net);
             let (a2, a3) = cidr.to_range();
             let (a1, a4) = v.to_range();
             if a1 < a2 {
-                add.push_back((a1, a2 - 1));
+                add(self, (a1, a2 - 1));
             }
             if a3 < a4 {
-                add.push_back((a3 + 1, a4));
-            }
-        }
-        for (a, b) in add {
-            for (_, v) in Self::from_range(a, b) {
-                self.insert(v);
+                add(self, (a3 + 1, a4));
             }
         }
         true
