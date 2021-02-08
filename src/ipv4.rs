@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 use std::collections::HashSet;
 
 /// Ipv4 CIDR structure
-#[derive(Eq, PartialEq, Debug)]
+#[derive(Eq, PartialEq, Debug, Clone)]
 pub struct Ipv4Cidr {
     /// First IP
     net: u32,
@@ -138,6 +138,7 @@ impl Display for Ipv4Cidr {
 }
 
 /// Ipv4 CIDR collection structure.
+#[derive(Eq, PartialEq, Clone)]
 pub struct Ipv4CidrList {
     inner: BTreeMap<u32, Ipv4Cidr>,
 }
@@ -271,12 +272,39 @@ impl Ipv4CidrList {
         }
     }
 
-    // pub fn remove(&mut self, cidr: Ipv4Cidr) -> bool {
-    //     for (&k,v) in self.iter_mut() {
-
-    //     }
-    //     false
-    // }
+    /// Remove CIDR blocks.
+    pub fn remove(&mut self, cidr: &Ipv4Cidr) -> bool {
+        let mut rem = HashSet::new();
+        let mut add = HashSet::new();
+        for (&k, v) in self.iter() {
+            let a = cidr.contains_cidr(v);
+            let b = v.contains_cidr(&cidr);
+            if a || b {
+                rem.insert(k);
+            }
+            if b {
+                let (a2, a3) = cidr.to_range();
+                let (a1, a4) = v.to_range();
+                if a1 < a2 {
+                    add.insert((a1, a2 - 1));
+                }
+                if a3 < a4 {
+                    add.insert((a3 + 1, a4));
+                }
+                break;
+            }
+        }
+        let changed = !rem.is_empty();
+        for k in rem {
+            self.inner.remove(&k);
+        }
+        for (a, b) in add {
+            for (_, v) in Self::from_range(a, b) {
+                self.insert(v);
+            }
+        }
+        changed
+    }
 }
 
 #[cfg(test)]
@@ -333,6 +361,18 @@ mod tests {
         // println!("{}", &list)
     }
 
+    #[test]
+    fn remove_cidr_tests() {
+        let from = Ipv4Addr::from_str("0.0.0.0").unwrap();
+        let to = Ipv4Addr::from_str("255.255.255.255").unwrap();
+        let rem = Ipv4Cidr::from_str("127.0.0.0/8").unwrap();
+        let mut list = Ipv4CidrList::from_ip_range(from, to);
+        list.remove(&rem);
+
+        // let list = Ipv4CidrList::from_range(0, 0);
+        // println!("{}", &list)
+    }
+
     #[quickcheck]
     fn convert_tests(xs: u32, ys: u8) -> bool {
         match Ipv4Cidr::new(xs, ys % 33) {
@@ -383,5 +423,18 @@ mod tests {
         from > to
             || Ipv4CidrList::from_range(from, to).to_range()
                 == vec![(Ipv4Addr::from(from), Ipv4Addr::from(to))]
+    }
+
+    #[quickcheck]
+    fn check_cidr_list_remove(from: u32, to: u32, rem: u32, m: u8) -> bool {
+        let c = Ipv4Cidr::new(rem, m % 33).unwrap();
+        let d = c.clone();
+        let mut list = Ipv4CidrList::from_range(from, to);
+        let mut modl = list.clone();
+        if modl.remove(&c) {
+            assert_eq!(true, modl.insert(c));
+            list.insert(d);
+        }
+        list == modl
     }
 }
