@@ -1,10 +1,14 @@
 [package]
 name = "cidr"
 version = "0.1.0"
-authors = ["Daniel YU <i@icymint.me>"]
+authors = ["Daniel YU <leptonyu@gmail.com>"]
+description = "IP network and IP host within network types"
 edition = "2018"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+homepage = "https://github.com/leptonyu/rust-cidr"
+repository = "https://github.com/leptonyu/rust-cidr"
+keywords = ["cidr", "network"]
+readme = "README.md"
+license = "MIT"
 
 [dependencies]
 regex = "1.4.3"

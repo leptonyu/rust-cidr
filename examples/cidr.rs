@@ -10,7 +10,7 @@ struct Opts {
     #[clap(short)]
     range: bool,
 
-    #[clap(short, long, default_value = " ")]
+    #[clap(short, long, default_value = "\t")]
     sep: String,
 }
 

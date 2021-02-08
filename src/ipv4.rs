@@ -1,5 +1,13 @@
+//! Ipv4 CIDR functions
+//!
+//! This module provides:
+//!
+//! * [`Ipv4Cidr`] Ipv4 CIDR structure.
+//! * [`Ipv4CidrList`] Ipv4 CIDR collection structure.
+//!
+//!
+
 use lazy_static::lazy_static;
-use regex::Captures;
 use regex::Regex;
 use std::collections::btree_map::Iter;
 use std::collections::btree_map::IterMut;
@@ -12,13 +20,19 @@ use std::str::FromStr;
 use std::collections::BTreeMap;
 use std::collections::HashSet;
 
+/// Ipv4 CIDR structure
 #[derive(Eq, PartialEq, Debug)]
 pub struct Ipv4Cidr {
+    /// First IP
     net: u32,
+    /// Size of CIDR blocks in 2^size.
     size: u8,
 }
 
+const NOT_POSSIBLE: &str = "Not possible";
+
 impl Ipv4Cidr {
+    /// Create CIDR from ip and mask.
     pub fn new(mut net: u32, mask: u8) -> Result<Self, String> {
         if mask > 32 {
             return Err("Mask should equal or less then 32.".to_string());
@@ -32,17 +46,27 @@ impl Ipv4Cidr {
         Ok(Ipv4Cidr { net, size })
     }
 
+    /// Create CIDR from ip and mask
+    pub fn from_ip(ip: Ipv4Addr, mask: u8) -> Result<Self, String> {
+        Self::new(u32::from(ip), mask)
+    }
+
+    /// Get the first ip in the CIDR blocks.
     pub fn first_ip(&self) -> Ipv4Addr {
         Ipv4Addr::from(self.net)
     }
+
+    /// Get the last ip in the CIDR blocks.
     pub fn last_ip(&self) -> Ipv4Addr {
         Ipv4Addr::from(self.to_range().1)
     }
 
+    /// Get the mask
     pub fn mask(&self) -> u8 {
         32 - self.size
     }
 
+    /// Check if the ip is in this CIDR block.
     pub fn contains_ip(&self, ip: &Ipv4Addr) -> bool {
         if self.size == 32 {
             return true;
@@ -50,6 +74,7 @@ impl Ipv4Cidr {
         self.net >> self.size == u32::from(ip.clone()) >> self.size
     }
 
+    /// Check if the current CIDR block contains other CIDR block.
     pub fn contains_cidr(&self, cidr: &Ipv4Cidr) -> bool {
         if self.size == 32 {
             return true;
@@ -60,6 +85,7 @@ impl Ipv4Cidr {
         self.net >> self.size == cidr.net >> self.size
     }
 
+    /// Convert CIDR block to u32 range.
     pub fn to_range(&self) -> (u32, u32) {
         if self.size == 32 {
             return (0, u32::MAX);
@@ -73,30 +99,20 @@ impl FromStr for Ipv4Cidr {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         lazy_static! {
             static ref RE: Regex = Regex::new(
-                r"^(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])\.(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])\.(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])\.(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])(/([0-9]|[12][0-9]|3[012]))?$"
+                r"^((1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])(\.(1?[0-9]{1,2}|2[0-4][0-9]|25[0-5])){3})(/([0-9]|[12][0-9]|3[012]))?$"
             )
-            .expect("Not possible");
-        }
-        fn parse_u32<'t>(ind: usize, v: &Captures<'t>) -> Result<u32, String> {
-            v.get(ind)
-                .map(|r| r.as_str().parse::<u32>())
-                .ok_or("Not possible")?
-                .map_err(|e| e.to_string())
+            .expect(NOT_POSSIBLE);
         }
 
         match RE.captures(s) {
             Some(ref v) => {
                 let ms = match v.get(6) {
-                    Some(v) => v.as_str().parse::<u8>().expect("Not possible"),
+                    Some(v) => v.as_str().parse::<u8>().expect(NOT_POSSIBLE),
                     _ => 32,
                 };
-                Ipv4Cidr::new(
-                    (parse_u32(1, v)? << 24)
-                        + (parse_u32(2, v)? << 16)
-                        + (parse_u32(3, v)? << 8)
-                        + parse_u32(4, v)?,
-                    ms,
-                )
+                let ip =
+                    Ipv4Addr::from_str(v.get(1).expect(NOT_POSSIBLE).as_str()).expect(NOT_POSSIBLE);
+                Ipv4Cidr::new(u32::from(ip), ms)
             }
             _ => Err("Invalid CIDR format.".to_owned()),
         }
@@ -111,7 +127,7 @@ impl From<Ipv4Addr> for Ipv4Cidr {
 
 impl From<u32> for Ipv4Cidr {
     fn from(addr: u32) -> Self {
-        Ipv4Cidr::new(addr, 32).expect("Not possible")
+        Ipv4Cidr::new(addr, 32).expect(NOT_POSSIBLE)
     }
 }
 
@@ -121,6 +137,7 @@ impl Display for Ipv4Cidr {
     }
 }
 
+/// Ipv4 CIDR collection structure.
 pub struct Ipv4CidrList {
     inner: BTreeMap<u32, Ipv4Cidr>,
 }
@@ -143,12 +160,14 @@ impl IntoIterator for Ipv4CidrList {
 }
 
 impl Ipv4CidrList {
+    /// Create empty collection.
     pub fn new() -> Self {
         Ipv4CidrList {
             inner: BTreeMap::new(),
         }
     }
 
+    /// Generate collection from ip range, can result multiple CIDR blocks.
     pub fn from_range(from: u32, to: u32) -> Self {
         let mut list = Ipv4CidrList::new();
         if from > to {
@@ -164,7 +183,7 @@ impl Ipv4CidrList {
                 m += 1;
             }
             let block =
-                Ipv4Cidr::new(if m == 32 { 0 } else { f << m }, 32 - m).expect("Not possible");
+                Ipv4Cidr::new(if m == 32 { 0 } else { f << m }, 32 - m).expect(NOT_POSSIBLE);
             if block.to_range() == (from, to) {
                 list.insert(block);
                 return;
@@ -177,14 +196,22 @@ impl Ipv4CidrList {
         list
     }
 
+    /// Generate collection from ip range, can result multiple CIDR blocks.
+    pub fn from_ip_range(from: Ipv4Addr, to: Ipv4Addr) -> Self {
+        Self::from_range(u32::from(from), u32::from(to))
+    }
+
+    /// Iterate all CIDR blocks.
     pub fn iter(&self) -> Iter<'_, u32, Ipv4Cidr> {
         self.inner.iter()
     }
 
+    /// Iterate all mutable CIDR blocks.
     pub fn iter_mut(&mut self) -> IterMut<'_, u32, Ipv4Cidr> {
         self.inner.iter_mut()
     }
 
+    /// Export CIDR blocks to ip ranges, normally ip ranges item size is smaller than CIDR blocks.
     pub fn to_range(&self) -> Vec<(Ipv4Addr, Ipv4Addr)> {
         let mut v = vec![];
         let mut iter = self.iter();
@@ -206,13 +233,14 @@ impl Ipv4CidrList {
         v
     }
 
-    pub fn insert(&mut self, mut cidr: Ipv4Cidr) {
+    /// Insert a CIDR block into the collection. Return `true` means collection is modified.
+    pub fn insert(&mut self, mut cidr: Ipv4Cidr) -> bool {
         loop {
             let mut rem = HashSet::new();
             //Search
             for (&k, v) in self.inner.iter() {
                 if v.contains_cidr(&cidr) {
-                    return;
+                    return false;
                 }
                 if cidr.contains_cidr(v) {
                     rem.insert(k);
@@ -233,13 +261,13 @@ impl Ipv4CidrList {
                 if let Some(v) = self.inner.get(&pair) {
                     if v.size == cidr.size {
                         self.inner.remove(&pair);
-                        cidr = Ipv4Cidr::new(pair, 31 - cidr.size).expect("Not possible");
+                        cidr = Ipv4Cidr::new(pair, 31 - cidr.size).expect(NOT_POSSIBLE);
                         continue;
                     }
                 }
             }
             self.inner.insert(cidr.net, cidr);
-            break;
+            return true;
         }
     }
 }
@@ -285,13 +313,13 @@ mod tests {
     fn range_parse_tests() {
         let from = Ipv4Addr::from_str("1.0.0.0").unwrap();
         let to = Ipv4Addr::from_str("1.0.0.255").unwrap();
-        let list = Ipv4CidrList::from_range(u32::from(from), u32::from(to));
+        let list = Ipv4CidrList::from_ip_range(from, to);
         assert_eq!("1.0.0.0/24", list.to_string().trim());
         // println!("{}", list.to_string());
 
         let from = Ipv4Addr::from_str("0.0.0.0").unwrap();
         let to = Ipv4Addr::from_str("255.255.255.255").unwrap();
-        let list = Ipv4CidrList::from_range(u32::from(from), u32::from(to));
+        let list = Ipv4CidrList::from_ip_range(from, to);
         assert_eq!("0.0.0.0/0", list.to_string().trim());
 
         // let list = Ipv4CidrList::from_range(0, u32::MAX - 1);
