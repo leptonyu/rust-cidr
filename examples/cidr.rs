@@ -12,6 +12,9 @@ struct Opts {
 
     #[clap(short, long, default_value = "\t")]
     sep: String,
+
+    #[clap(short)]
+    count: bool,
 }
 
 fn main() {
@@ -50,5 +53,11 @@ fn main() {
     for (_, cidr) in rem {
         list.remove(&cidr);
     }
+
+    if option.count {
+        print!("{}", list.count());
+        return;
+    }
+
     print!("{}", list);
 }

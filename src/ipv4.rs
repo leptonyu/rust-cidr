@@ -66,6 +66,10 @@ impl Ipv4Cidr {
         32 - self.size
     }
 
+    pub fn count(&self) -> u64 {
+        2u64.pow(self.size as u32)
+    }
+
     /// Check if the ip is in this CIDR block.
     pub fn contains_ip(&self, ip: &Ipv4Addr) -> bool {
         if self.size == 32 {
@@ -215,6 +219,14 @@ impl Ipv4CidrList {
     /// Iterate all mutable CIDR blocks.
     pub fn iter_mut(&mut self) -> IterMut<'_, u32, Ipv4Cidr> {
         self.inner.iter_mut()
+    }
+
+    pub fn count(&self) -> u64 {
+        let mut c = 0;
+        for (_, v) in self.iter() {
+            c += v.count();
+        }
+        c
     }
 
     /// Export CIDR blocks to ip ranges, normally ip ranges item size is smaller than CIDR blocks.
