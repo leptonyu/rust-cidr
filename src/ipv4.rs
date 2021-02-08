@@ -11,6 +11,7 @@ use lazy_static::lazy_static;
 use regex::Regex;
 use std::collections::btree_map::Iter;
 use std::collections::btree_map::IterMut;
+use std::collections::LinkedList;
 use std::fmt::Display;
 use std::fmt::Error;
 use std::fmt::Formatter;
@@ -91,6 +92,11 @@ impl Ipv4Cidr {
             return (0, u32::MAX);
         }
         (self.net, self.net + (2u32.pow(self.size as u32) - 1))
+    }
+    /// Convert CIDR block toipo range.
+    pub fn to_ip_range(&self) -> (Ipv4Addr, Ipv4Addr) {
+        let (f, t) = self.to_range();
+        (Ipv4Addr::from(f), Ipv4Addr::from(t))
     }
 }
 
@@ -234,23 +240,64 @@ impl Ipv4CidrList {
         v
     }
 
+    /// Check if collection contains ip.
+    pub fn contains_ip(&self, ip: &Ipv4Addr) -> bool {
+        self.contains_cidr(&Ipv4Cidr::from(ip.clone()))
+    }
+
+    /// Check if collection contains CIDR block.
+    pub fn contains_cidr(&self, cidr: &Ipv4Cidr) -> bool {
+        self.search_parent(cidr).is_some()
+    }
+
+    /// Get the parent CIDR block with specified CIDR block.
+    pub fn search_parent(&self, cidr: &Ipv4Cidr) -> Option<&Ipv4Cidr> {
+        let mut net = cidr.net;
+        let mut size = cidr.size;
+        loop {
+            if let Some(v) = self.inner.get(&net) {
+                if v.size >= size {
+                    return Some(v);
+                }
+            }
+            if size == 32 {
+                return None;
+            }
+            net >>= size;
+            while net & 1 == 0 {
+                net >>= 1;
+                size += 1;
+                if size == 32 {
+                    return None;
+                }
+            }
+            net = (net - 1) << size;
+            size += 1;
+        }
+    }
+
+    fn delete_in_range(&mut self, cidr: &Ipv4Cidr) -> bool {
+        let (f, t) = cidr.to_range();
+        let mut rem = LinkedList::new();
+        for (&k, v) in self.inner.range(f..=t) {
+            if cidr.contains_cidr(v) {
+                rem.push_back(k);
+            }
+        }
+        let changed = !rem.is_empty();
+        for k in rem {
+            self.inner.remove(&k);
+        }
+        changed
+    }
+
     /// Insert a CIDR block into the collection. Return `true` means collection is modified.
     pub fn insert(&mut self, mut cidr: Ipv4Cidr) -> bool {
+        self.delete_in_range(&cidr);
+        if self.contains_cidr(&cidr) {
+            return false;
+        }
         loop {
-            let mut rem = HashSet::new();
-            //Search
-            for (&k, v) in self.iter() {
-                if v.contains_cidr(&cidr) {
-                    return false;
-                }
-                if cidr.contains_cidr(v) {
-                    rem.insert(k);
-                }
-            }
-            //Remove
-            for k in rem {
-                self.inner.remove(&k);
-            }
             //Merge
             if cidr.size < 32 {
                 let block = cidr.net >> cidr.size;
@@ -274,36 +321,31 @@ impl Ipv4CidrList {
 
     /// Remove CIDR blocks.
     pub fn remove(&mut self, cidr: &Ipv4Cidr) -> bool {
-        let mut rem = HashSet::new();
-        let mut add = HashSet::new();
-        for (&k, v) in self.iter() {
-            let a = cidr.contains_cidr(v);
-            let b = v.contains_cidr(&cidr);
-            if a || b {
-                rem.insert(k);
-            }
-            if b {
-                let (a2, a3) = cidr.to_range();
-                let (a1, a4) = v.to_range();
-                if a1 < a2 {
-                    add.insert((a1, a2 - 1));
-                }
-                if a3 < a4 {
-                    add.insert((a3 + 1, a4));
-                }
-                break;
-            }
+        if self.delete_in_range(cidr) {
+            return true;
         }
-        let changed = !rem.is_empty();
-        for k in rem {
-            self.inner.remove(&k);
+        let mut add = HashSet::new();
+        if let Some(v) = self.search_parent(cidr) {
+            if v == cidr {
+                return false;
+            }
+            let v = v.clone();
+            self.inner.remove(&v.net);
+            let (a2, a3) = cidr.to_range();
+            let (a1, a4) = v.to_range();
+            if a1 < a2 {
+                add.insert((a1, a2 - 1));
+            }
+            if a3 < a4 {
+                add.insert((a3 + 1, a4));
+            }
         }
         for (a, b) in add {
             for (_, v) in Self::from_range(a, b) {
                 self.insert(v);
             }
         }
-        changed
+        true
     }
 }
 
@@ -341,16 +383,16 @@ mod tests {
         list.insert(Ipv4Cidr::from_str("4.0.0.0/8").unwrap());
         list.insert(Ipv4Cidr::from_str("5.61.0.0/16").unwrap());
         list.insert(Ipv4Cidr::from_str("6.0.0.0/7").unwrap());
-        assert_eq!(3, list.inner.len());
         // println!("{}", &list);
+        assert_eq!(3, list.inner.len());
     }
     #[test]
     fn range_parse_tests() {
         let from = Ipv4Addr::from_str("1.0.0.0").unwrap();
         let to = Ipv4Addr::from_str("1.0.0.255").unwrap();
         let list = Ipv4CidrList::from_ip_range(from, to);
-        assert_eq!("1.0.0.0/24", list.to_string().trim());
         // println!("{}", list.to_string());
+        assert_eq!("1.0.0.0/24", list.to_string().trim());
 
         let from = Ipv4Addr::from_str("0.0.0.0").unwrap();
         let to = Ipv4Addr::from_str("255.255.255.255").unwrap();

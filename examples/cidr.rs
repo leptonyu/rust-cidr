@@ -18,6 +18,7 @@ fn main() {
     let option = Opts::parse();
     let stdin = io::stdin();
     let mut list = Ipv4CidrList::new();
+    let mut rem = Ipv4CidrList::new();
     for line in stdin.lock().lines() {
         if let Ok(l) = line {
             if option.range {
@@ -25,7 +26,7 @@ fn main() {
                 if v.len() >= 2 {
                     fn parse_block(f: &str, t: &str) -> Ipv4CidrList {
                         if let (Ok(f), Ok(t)) = (Ipv4Addr::from_str(f), Ipv4Addr::from_str(t)) {
-                            return Ipv4CidrList::from_range(u32::from(f), u32::from(t));
+                            return Ipv4CidrList::from_ip_range(f, t);
                         }
                         Ipv4CidrList::new()
                     }
@@ -34,11 +35,20 @@ fn main() {
                     }
                 }
             } else {
-                if let Ok(ip) = Ipv4Cidr::from_str(&l) {
-                    list.insert(ip);
+                fn add(list: &mut Ipv4CidrList, ip: &str) {
+                    if let Ok(ip) = Ipv4Cidr::from_str(ip.trim()) {
+                        list.insert(ip);
+                    }
+                }
+                match &l.strip_prefix("-") {
+                    Some(ip) => add(&mut rem, ip),
+                    _ => add(&mut list, &l),
                 }
             }
         }
+    }
+    for (_, cidr) in rem {
+        list.remove(&cidr);
     }
     print!("{}", list);
 }
