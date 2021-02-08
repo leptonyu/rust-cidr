@@ -238,7 +238,7 @@ impl Ipv4CidrList {
         loop {
             let mut rem = HashSet::new();
             //Search
-            for (&k, v) in self.inner.iter() {
+            for (&k, v) in self.iter() {
                 if v.contains_cidr(&cidr) {
                     return false;
                 }
@@ -270,6 +270,13 @@ impl Ipv4CidrList {
             return true;
         }
     }
+
+    // pub fn remove(&mut self, cidr: Ipv4Cidr) -> bool {
+    //     for (&k,v) in self.iter_mut() {
+
+    //     }
+    //     false
+    // }
 }
 
 #[cfg(test)]
