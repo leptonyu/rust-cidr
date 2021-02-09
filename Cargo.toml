@@ -13,8 +13,10 @@ license = "MIT"
 [dependencies]
 regex = "1.4.3"
 lazy_static = "1.4.0"
+md5="0.7"
 
 [dev-dependencies]
 clap = "3.0.0-beta.2"
 quickcheck = "1.0.3"
 quickcheck_macros ="1"
+actix-web = "3"
