@@ -1,35 +1,22 @@
 use cidr::ipv4::{Ipv4Cidr, Ipv4CidrList};
-use clap::Clap;
+use salak::*;
 use std::io::{self, BufRead};
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 
-#[derive(Clap)]
-#[clap(version = "0.1.0", author = "Daniel Yu<leptonyu@gmail.com>")]
-struct Opts {
-    #[clap(short, about("Parse ip ranges instead of cidr blocks."))]
-    range_parse: bool,
-
-    #[clap(
-        short,
-        default_value = "\t",
-        about("Only work when -r option is setted.")
-    )]
-    sep: String,
-
-    #[clap(short, long, about("Count all ip blocks size."))]
-    count: bool,
-}
-
 fn main() {
-    let option = Opts::parse();
+    let env = SalakBuilder::new()
+        .with_default_args(auto_read_sys_args_param!())
+        .build();
     let stdin = io::stdin();
     let mut list = Ipv4CidrList::new();
     let mut rem = Ipv4CidrList::new();
+    let mode = env.get_or("mode", "cidr".to_owned()) == "range";
+    let sep = env.get_or("sep", "\t".to_owned());
     for line in stdin.lock().lines() {
         if let Ok(l) = line {
-            if option.range_parse {
-                let v: Vec<&str> = l.split(&option.sep).collect();
+            if mode {
+                let v: Vec<&str> = l.split(&sep).collect();
                 if v.len() >= 2 {
                     fn parse_block(f: &str, t: &str) -> Ipv4CidrList {
                         if let (Ok(f), Ok(t)) = (Ipv4Addr::from_str(f), Ipv4Addr::from_str(t)) {
@@ -58,7 +45,7 @@ fn main() {
         list.remove(&cidr);
     }
 
-    if option.count {
+    if env.get_or("count", false) {
         print!("{}", list.count());
         return;
     }
