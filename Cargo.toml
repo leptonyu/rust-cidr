@@ -16,6 +16,6 @@ lazy_static = "1"
 md5="0.7"
 
 [dev-dependencies]
-salak = "0.2"
+salak = "0.3"
 quickcheck = "1"
 quickcheck_macros ="1"

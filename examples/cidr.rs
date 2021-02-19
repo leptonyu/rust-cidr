@@ -4,6 +4,16 @@ use std::io::{self, BufRead};
 use std::net::Ipv4Addr;
 use std::str::FromStr;
 
+#[derive(FromEnvironment)]
+struct Options {
+    #[salak(default = "cidr")]
+    mode: String,
+    #[salak(default = "\t")]
+    sep: String,
+    #[salak(default = false)]
+    count: bool,
+}
+
 fn main() {
     let env = SalakBuilder::new()
         .with_default_args(auto_read_sys_args_param!())
@@ -11,12 +21,13 @@ fn main() {
     let stdin = io::stdin();
     let mut list = Ipv4CidrList::new();
     let mut rem = Ipv4CidrList::new();
-    let mode = env.get_or("mode", "cidr".to_owned()) == "range";
-    let sep = env.get_or("sep", "\t".to_owned());
+    let option = env.require::<Options>("").unwrap();
+
+    let mode = option.mode == "range";
     for line in stdin.lock().lines() {
         if let Ok(l) = line {
             if mode {
-                let v: Vec<&str> = l.split(&sep).collect();
+                let v: Vec<&str> = l.split(&option.sep).collect();
                 if v.len() >= 2 {
                     fn parse_block(f: &str, t: &str) -> Ipv4CidrList {
                         if let (Ok(f), Ok(t)) = (Ipv4Addr::from_str(f), Ipv4Addr::from_str(t)) {
@@ -45,7 +56,7 @@ fn main() {
         list.remove(&cidr);
     }
 
-    if env.get_or("count", false) {
+    if option.count {
         print!("{}", list.count());
         return;
     }
