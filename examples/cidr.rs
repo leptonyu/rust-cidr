@@ -5,6 +5,7 @@ use std::net::Ipv4Addr;
 use std::str::FromStr;
 
 #[derive(FromEnvironment)]
+#[salak(prefix = "")]
 struct Options {
     #[salak(default = "cidr")]
     mode: String,
@@ -15,13 +16,13 @@ struct Options {
 }
 
 fn main() {
-    let env = SalakBuilder::new()
+    let env = Salak::new()
         .with_default_args(auto_read_sys_args_param!())
         .build();
     let stdin = io::stdin();
     let mut list = Ipv4CidrList::new();
     let mut rem = Ipv4CidrList::new();
-    let option = env.require::<Options>("").unwrap();
+    let option = env.load_config::<Options>().unwrap();
 
     let mode = option.mode == "range";
     for line in stdin.lock().lines() {
