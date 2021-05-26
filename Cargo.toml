@@ -1,21 +1,21 @@
 [package]
-name = "cidr"
-version = "0.1.1"
 authors = ["Daniel Yu <leptonyu@gmail.com>"]
 description = "IP network and IP host within network types"
 edition = "2018"
 homepage = "https://github.com/leptonyu/rust-cidr"
-repository = "https://github.com/leptonyu/rust-cidr"
 keywords = ["cidr", "network"]
-readme = "README.md"
 license = "MIT"
+name = "cidr"
+readme = "README.md"
+repository = "https://github.com/leptonyu/rust-cidr"
+version = "0.1.1"
 
 [dependencies]
-regex = "1"
 lazy_static = "1"
-md5="0.7"
+md5 = "0.7"
+regex = "1"
 
 [dev-dependencies]
-salak = { version = "0.7.0",  features = ["enable_pico"]}
 quickcheck = "1"
-quickcheck_macros ="1"
+quickcheck_macros = "1"
+salak = {version = "0.10", features = ["args"]}
