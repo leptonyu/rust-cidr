@@ -254,9 +254,9 @@ checksum = "b5eb417147ba9860a96cfe72a0b93bf88fee1744b5636ec99ab20c1aa9376581"
 
 [[package]]
 name = "salak"
-version = "0.10.0"
+version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41eb74d432500bedc260ef7d2490498cdbfac701d0a1bf53cd2567bb114ff52d"
+checksum = "0c610fe536fedd59ae6c0325c7296a4881cf5454e854ff40fea25762ffc3b003"
 dependencies = [
  "clap",
  "lazy_static",
@@ -268,9 +268,9 @@ dependencies = [
 
 [[package]]
 name = "salak_derive"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ced1605b052309ae578d7a3f8d121fd9e394568efd49cb322e9f1c7eb095fb3"
+checksum = "ae69be9d3dfa20702ab1fb28d64a86f495131d60550bcbbe952a864e2ce21f0f"
 dependencies = [
  "lazy_static",
  "quote",

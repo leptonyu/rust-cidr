@@ -18,4 +18,4 @@ regex = "1"
 [dev-dependencies]
 quickcheck = "1"
 quickcheck_macros = "1"
-salak = {version = "0.10", features = ["args"]}
+salak = {version = "0.11", features = ["args"]}

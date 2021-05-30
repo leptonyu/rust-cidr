@@ -17,9 +17,10 @@ struct Options {
 
 fn main() {
     let env = Salak::builder()
-        .enable_args(app_info!())
-        .add_config_desc::<Options>()
-        .unwrap_build();
+        .configure_args(app_info!())
+        .configure_description::<Options>()
+        .build()
+        .unwrap();
     let stdin = io::stdin();
     let mut list = Ipv4CidrList::new();
     let mut rem = Ipv4CidrList::new();
